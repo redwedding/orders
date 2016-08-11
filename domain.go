@@ -6,8 +6,6 @@ import (
 	"log"
 	"time"
 	"errors"
-	"github.com/gocql/gocql"
-	"strings"
 )
 
 type Config struct {
@@ -41,10 +39,6 @@ func (o Order) ValidadeNewOrder() error {
 		return errors.New("Order Status cannot be empty")
 	}
 
-	if o.Price <= 0 {
-		return errors.New("Order Price cannot be less or equal to 0")
-	}
-
 	if len(o.Items) > 0 {
 		for i := range o.Items {
 			return o.Items[i].ValidadeNewOrderItem();
@@ -60,9 +54,9 @@ func (o Order) ValidadeNewOrder() error {
 }
 
 type OrderItem struct {
-	Sku       string `json:"sku"`
-	UnitPrice int    `json:"unit_price"`
-	Quantity  int    `json:"quantity"`
+	Sku       string `cql:"sku" json:"sku"`
+	UnitPrice int    `cql:"unit_price" json:"unit_price"`
+	Quantity  int    `cql:"quantity" json:"quantity"`
 }
 
 
@@ -84,15 +78,15 @@ func (oi OrderItem) ValidadeNewOrderItem() error {
 
 
 type Transaction struct {
-	Id                string `json:"id"`
-	ExternalId        string `json:"external_id"`
-	Amount            int    `json:"amount"`
-	Type              string `json:"type"`
-	AuthorizationCode string `json:"authorization_code"`
-	CardBrand         string `json:"card_brand"`
-	CardBin           string `json:"card_bin"`
-	CardLast          string `json:"card_last"`
-	OrderId           string `json:"order_id"`
+	Id                string `json:"id" cql:"id"`
+	ExternalId        string `json:"external_id" cql:"external_id"`
+	Amount            int    `json:"amount" cql:"amount"`
+	Type              string `json:"type" cql:"type"`
+	AuthorizationCode string `json:"authorization_code" cql:"authorization_code"`
+	CardBrand         string `json:"card_brand" cql:"card_brand"`
+	CardBin           string `json:"card_bin" cql:"card_bin"`
+	CardLast          string `json:"card_last" cql:"card_last"`
+	OrderId           string `json:"order_id" cql:"order_id"`
 }
 
 func (t Transaction) ValidateNewTransaction() error {
@@ -158,6 +152,19 @@ func (order *Order) FindId(id string) error {
 	return session.Query("SELECT id FROM orders WHERE id = ? ", id).Scan(&order.Id)
 }
 
+func (order *Order) GetOrder(id string) error {
+
+	err := session.Query("SELECT id, number, reference, status, notes, price, created_at, updated_at, items, transactions from orders WHERE id = ? ", id).
+		 Scan(&order.Id, &order.Number, &order.Reference, &order.Status, &order.Notes, &order.Price, &order.CreatedAt,
+			&order.UpdatedAt, &order.Items, &order.Transactions)
+
+	if err != nil {
+		log.Print(err)
+	}
+
+	return err
+}
+
 func (item *OrderItem) Save(order_id string) error {
 
 
@@ -167,19 +174,11 @@ func (item *OrderItem) Save(order_id string) error {
 		return err;
 	}
 
-	err = session.Query(fmt.Sprintf("UPDATE orders SET items = items + [{sku: %v, unit_price: %v, quantity: %v}] WHERE id = %v",
-		item.Sku, item.UnitPrice, item.Quantity, order_id)).Exec()
+	query := fmt.Sprintf("UPDATE orders SET updated_at = ?, items = items + [{sku: %v, unit_price: %v, quantity: %v}] WHERE id = %v",
+		item.Sku, item.UnitPrice, item.Quantity, order_id)
 
-	if err != nil {
-		log.Print(err)
-	}
-
-	return err
-}
-
-func (order *Order) GetOrder(id string) error {
-	err := session.Query("SELECT id, number, reference, status, notes, price from orders WHERE id = ? ", id).
-		 Scan(&order.Id, &order.Number, &order.Reference, &order.Status, &order.Notes, &order.Price)
+	log.Print(query)
+	err = session.Query(query, time.Now()).Exec()
 
 	if err != nil {
 		log.Print(err)
@@ -190,16 +189,17 @@ func (order *Order) GetOrder(id string) error {
 
 func (tran *Transaction) Save(order_id string) error {
 	tran.Id = uuid.NewV4().String()
+	tran.OrderId = order_id
 
 	err := tran.ValidateNewTransaction()
 	if err != nil {
 		log.Print(err)
 		return err;
 	}
-	query := fmt.Sprintf("UPDATE orders SET transactions = transactions + [{id: %v, external_id: '%v', amount: %v, type: '%v', authorization_code: '%v', card_brand: '%v', card_bin: '%v', card_last: '%v'}] WHERE id = %v",
-		tran.Id, tran.ExternalId, tran.Amount, tran.Type, tran.AuthorizationCode, tran.CardBrand, tran.CardBin, tran.CardLast, order_id)
+	query := fmt.Sprintf("UPDATE orders SET updated_at = ?, transactions = transactions + [{id: %v, external_id: '%v', amount: %v, type: '%v', authorization_code: '%v', card_brand: '%v', card_bin: '%v', card_last: '%v'}] WHERE id = %v",
+		tran.Id, tran.ExternalId, tran.Amount, tran.Type, tran.AuthorizationCode, tran.CardBrand, tran.CardBin, tran.CardLast, tran.OrderId)
 
-	err = session.Query(query).Exec()
+	err = session.Query(query, time.Now()).Exec()
 
 	if err != nil {
 		log.Print(err)
@@ -208,11 +208,3 @@ func (tran *Transaction) Save(order_id string) error {
 	return err
 }
 
-func (order *OrderItem) UnmarshalCQL(info gocql.TypeInfo, data []byte) error {
-
-	t := strings.SplitN(string(data), " ", 2)
-
-	log.Print(t)
-	return nil
-
-}
