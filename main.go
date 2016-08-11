@@ -10,6 +10,11 @@ import (
 	"log"
 )
 
+type Config struct {
+	Scyllaclusters []string
+	Serverport     int
+}
+
 var session *gocql.Session
 var config Config
 

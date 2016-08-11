@@ -17,6 +17,21 @@ type TransactionAPI struct {
 	*iris.Context
 }
 
+func (request OrderAPI) Get() {
+	order := Order{}
+
+	err := order.GetOrder(request.Param("id"))
+
+	if err != nil {
+		log.Print(err)
+		request.EmitError(iris.StatusNotFound)
+		return
+	}
+
+	request.ReadJSON(&order)
+	request.JSON(iris.StatusOK, order)
+}
+
 func (request OrderAPI) Post() {
 	order := Order{}
 	request.ReadJSON(&order)
@@ -54,21 +69,6 @@ func (request OrderItemAPI) Post() {
 		return
 	}
 	request.Text(iris.StatusOK, "")
-}
-
-func (request OrderAPI) Get() {
-	order := Order{}
-
-	err := order.GetOrder(request.Param("id"))
-
-	if err != nil {
-		log.Print(err)
-		request.EmitError(iris.StatusNotFound)
-		return
-	}
-
-	request.ReadJSON(&order)
-	request.JSON(iris.StatusOK, order)
 }
 
 func (request TransactionAPI) Post() {
