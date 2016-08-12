@@ -33,7 +33,7 @@ func main() {
 	cluster := gocql.NewCluster(config.Scyllaclusters...)
 	cluster.Keyspace = "orders"
 	cluster.ProtoVersion = 3
-	cluster.Consistency = gocql.One
+	cluster.Consistency = gocql.Two
 
 	session, _ = cluster.CreateSession()
 	defer session.Close()

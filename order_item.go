@@ -43,7 +43,6 @@ func (item *OrderItem) Save(order_id string) error {
 	query := fmt.Sprintf("UPDATE orders SET updated_at = ?, items = items + [{sku: %v, unit_price: %v, quantity: %v}] WHERE id = %v",
 		item.Sku, item.UnitPrice, item.Quantity, order_id)
 
-	log.Print(query)
 	err = session.Query(query, time.Now()).Exec()
 
 	if err != nil {
